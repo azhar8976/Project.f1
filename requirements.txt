@@ -6,3 +6,5 @@ pandas
 numpy
 plotly
 xlsxwriter
+streamlit-option-menu
+fastf1
