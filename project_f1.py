@@ -14,7 +14,7 @@ st.set_page_config(
     initial_sidebar_state="expanded"
 )
 
-# ================= CACHE =================
+# ================= CACHE CONFIGURATION =================
 os.makedirs("cache", exist_ok=True)
 fastf1.Cache.enable_cache("cache")
 
@@ -109,7 +109,7 @@ with st.sidebar:
 
     st.markdown("---")
     year = st.selectbox("Season", [2026, 2025, 2024, 2023, 2022], index=2) 
-    gp = st.text_input("Grand Prix (e.g., Monaco or 8)", "Monaco")
+    gp = st.text_input("Grand Prix Name or Round Number", "Monaco")
     session_type = st.selectbox("Session", ["R", "Q", "FP1", "FP2", "FP3"])
     load = st.button("🚀 Load Race Data")
 
@@ -144,27 +144,30 @@ with c4:
 with c5:
     st.markdown("<div class='team-card alpine'>ALPINE<br>GAS • COL<br>BEST: 2.35s</div>", unsafe_allow_html=True)
 
-# ================= LOAD DATA LOGIC =================
+# ================= LOAD DATA SYSTEM =================
 if load:
     try:
         with st.spinner("Fetching Live Telemetry Data from FastF1..."):
-            # Fetch session
-            session = fastf1.get_session(year, gp, session_type)
             
-            # Robust dynamic data loading fallback
-            try:
-                session.load(laps=True, telemetry=False, weather=False)
-            except Exception:
-                session.load() # Fallback straight load if tailored parameters fail
-                
+            # Input clean up
+            target_gp = gp.strip()
+            if target_gp.isdigit():
+                target_gp = int(target_gp)
+            
+            # Step 1: Explicitly initialize the session pipeline
+            session = fastf1.get_session(int(year), target_gp, session_type)
+            
+            # Step 2: High fidelity load bypass parameters
+            session.load(laps=True, telemetry=False, weather=False, messages=False)
+            
             laps = session.laps
-            
-            if laps.empty:
-                st.error("⚠️ Selected event dataset is empty or not yet released by the official server.")
+
+            if laps is None or len(laps) == 0:
+                st.error("⚠️ Official FastF1 database server returns an empty telemetry matrix for this circuit combination.")
             else:
                 drivers = laps["Driver"].dropna().unique()
 
-                st.success("✅ Data Loaded Successfully!")
+                st.success("✅ DATA LOADED & SYNCHRONIZED SUCCESSFULLY!")
 
                 m1, m2, m3, m4 = st.columns(4)
                 m1.metric("Drivers Found", len(drivers))
@@ -240,5 +243,5 @@ if load:
                 )
 
     except Exception as e:
-        st.error(f"❌ Core Telemetry Loading Failed: {e}")
-        st.info("💡 Pro-Tip: FastF1 servers occasionally require round index keys. Try entering a round number (like '8' for Monaco 2024) inside the Circuit field if a name fails.")
+        st.error(f"❌ Core Telemetry Connection Error: {e}")
+        st.info("💡 Pro-Tip: FastF1 schedule mismatch aur server side overload se bachne ke liye text area me exact Round number enter karein (e.g., Monaco ki jagah 8 likh kar check karein).")
