@@ -109,7 +109,7 @@ with st.sidebar:
 
     st.markdown("---")
     year = st.selectbox("Season", [2026, 2025, 2024, 2023, 2022], index=2) 
-    gp = st.text_input("Grand Prix", "Monaco")
+    gp = st.text_input("Grand Prix (e.g., Monaco or 8)", "Monaco")
     session_type = st.selectbox("Session", ["R", "Q", "FP1", "FP2", "FP3"])
     load = st.button("🚀 Load Race Data")
 
@@ -148,85 +148,97 @@ with c5:
 if load:
     try:
         with st.spinner("Fetching Live Telemetry Data from FastF1..."):
+            # Fetch session
             session = fastf1.get_session(year, gp, session_type)
-            session.load()
+            
+            # Robust dynamic data loading fallback
+            try:
+                session.load(laps=True, telemetry=False, weather=False)
+            except Exception:
+                session.load() # Fallback straight load if tailored parameters fail
+                
             laps = session.laps
-            drivers = laps["Driver"].dropna().unique()
-
-        st.success("✅ Data Loaded Successfully!")
-
-        m1, m2, m3, m4 = st.columns(4)
-        m1.metric("Drivers Found", len(drivers))
-        m2.metric("Total Laps Checked", int(laps["LapNumber"].max()))
-        
-        fastest_lap = laps.pick_fastest()
-        m3.metric("Fastest Driver", fastest_lap["Driver"])
-        
-        lap_time_str = str(fastest_lap["LapTime"]).split()[-1] if 'LapTime' in fastest_lap else "N/A"
-        m4.metric("Fastest Lap time", lap_time_str)
-
-        st.markdown("---")
-        st.subheader("🏁 Race Summary Telemetry")
-
-        tab1, tab2, tab3, tab4 = st.tabs([
-            "📈 Telemetry", "🏁 Prediction", "🛞 Tyres", "📊 Analytics"
-        ])
-
-        # --- TAB 1: TELEMETRY ---
-        with tab1:
-            driver = st.selectbox("Select Driver", drivers, key="telemetry_driver")
-            driver_laps = laps.pick_drivers(driver)
-            fastest = driver_laps.pick_fastest()
-
-            st.write(f"🏎️ **Driver:** {driver} | **Fastest Lap:** {str(fastest['LapTime']).split()[-1]}")
-
-            fig = px.line(driver_laps, x="LapNumber", y=pd.to_timedelta(driver_laps["LapTime"]).dt.total_seconds(), title=f"{driver} Lap Times Progression")
-            fig.update_layout(template="plotly_dark", paper_bgcolor="#111111", plot_bgcolor="#111111", yaxis_title="Seconds")
-            st.plotly_chart(fig, use_container_width=True)
-
-        # --- TAB 2: PREDICTION ---
-        with tab2:
-            st.subheader("🤖 AI Winner Prediction Engine")
-            gauge = go.Figure(go.Indicator(
-                mode="gauge+number", value=89,
-                title={"text": "Prediction Confidence (%)"},
-                gauge={"axis": {"range": [0, 100]}, "bar": {"color": "#00d9ff"}}
-            ))
-            gauge.update_layout(template="plotly_dark", height=300)
-            st.plotly_chart(gauge, use_container_width=True)
-            st.success(f"🏆 AI Predicted Winner: {fastest_lap['Driver']}")
-
-        # --- TAB 3: TYRES ---
-        with tab3:
-            tyre_driver = st.selectbox("Driver For Tyres", drivers, key="tyre_driver")
-            tyre_laps = laps.pick_drivers(tyre_driver)
-            if "TyreLife" in tyre_laps.columns:
-                tyre_fig = px.scatter(tyre_laps, x="LapNumber", y="TyreLife", color="Compound", size="TyreLife", title="Tyre Degradation Matrix")
-                tyre_fig.update_layout(template="plotly_dark")
-                st.plotly_chart(tyre_fig, use_container_width=True)
+            
+            if laps.empty:
+                st.error("⚠️ Selected event dataset is empty or not yet released by the official server.")
             else:
-                st.info("Tyre Life metrics are not recorded for this session.")
+                drivers = laps["Driver"].dropna().unique()
 
-        # --- TAB 4: ANALYTICS ---
-        with tab4:
-            st.subheader("📊 Average Lap Duration Performance")
-            laps_copy = laps.copy()
-            if 'LapTime' in laps_copy.columns:
-                laps_copy['LapTimeSecs'] = pd.to_timedelta(laps_copy['LapTime']).dt.total_seconds()
-                avg_lap = laps_copy.groupby("Driver")["LapTimeSecs"].mean().dropna().sort_values()
-                fig3 = px.bar(x=avg_lap.index, y=avg_lap.values, labels={"x": "Driver", "y": "Avg Time (Seconds)"}, title="Pace Breakdown")
-                fig3.update_layout(template="plotly_dark")
-                st.plotly_chart(fig3, use_container_width=True)
+                st.success("✅ Data Loaded Successfully!")
 
-        # Download Report
-        st.markdown("---")
-        csv_data = laps.to_csv(index=False)
-        st.download_button(
-            "⬇️ Download Session Telemetry Report (CSV)",
-            data=csv_data,
-            file_name=f"F1_{gp}_{year}_Data.csv",
-            mime="text/csv"
-        )
+                m1, m2, m3, m4 = st.columns(4)
+                m1.metric("Drivers Found", len(drivers))
+                m2.metric("Total Laps Checked", int(laps["LapNumber"].max()))
+                
+                fastest_lap = laps.pick_fastest()
+                m3.metric("Fastest Driver", fastest_lap["Driver"])
+                
+                lap_time_str = str(fastest_lap["LapTime"]).split()[-1] if 'LapTime' in fastest_lap else "N/A"
+                m4.metric("Fastest Lap time", lap_time_str)
+
+                st.markdown("---")
+                st.subheader("🏁 Race Summary Telemetry")
+
+                tab1, tab2, tab3, tab4 = st.tabs([
+                    "📈 Telemetry", "🏁 Prediction", "🛞 Tyres", "📊 Analytics"
+                ])
+
+                # --- TAB 1: TELEMETRY ---
+                with tab1:
+                    driver = st.selectbox("Select Driver", drivers, key="telemetry_driver")
+                    driver_laps = laps.pick_drivers(driver)
+                    fastest = driver_laps.pick_fastest()
+
+                    st.write(f"🏎️ **Driver:** {driver} | **Fastest Lap:** {str(fastest['LapTime']).split()[-1]}")
+
+                    fig = px.line(driver_laps, x="LapNumber", y=pd.to_timedelta(driver_laps["LapTime"]).dt.total_seconds(), title=f"{driver} Lap Times Progression")
+                    fig.update_layout(template="plotly_dark", paper_bgcolor="#111111", plot_bgcolor="#111111", yaxis_title="Seconds")
+                    st.plotly_chart(fig, use_container_width=True)
+
+                # --- TAB 2: PREDICTION ---
+                with tab2:
+                    st.subheader("🤖 AI Winner Prediction Engine")
+                    gauge = go.Figure(go.Indicator(
+                        mode="gauge+number", value=89,
+                        title={"text": "Prediction Confidence (%)"},
+                        gauge={"axis": {"range": [0, 100]}, "bar": {"color": "#00d9ff"}}
+                    ))
+                    gauge.update_layout(template="plotly_dark", height=300)
+                    st.plotly_chart(gauge, use_container_width=True)
+                    st.success(f"🏆 AI Predicted Winner: {fastest_lap['Driver']}")
+
+                # --- TAB 3: TYRES ---
+                with tab3:
+                    tyre_driver = st.selectbox("Driver For Tyres", drivers, key="tyre_driver")
+                    tyre_laps = laps.pick_drivers(tyre_driver)
+                    if "TyreLife" in tyre_laps.columns:
+                        tyre_fig = px.scatter(tyre_laps, x="LapNumber", y="TyreLife", color="Compound", size="TyreLife", title="Tyre Degradation Matrix")
+                        tyre_fig.update_layout(template="plotly_dark")
+                        st.plotly_chart(tyre_fig, use_container_width=True)
+                    else:
+                        st.info("Tyre Life metrics are not recorded for this session.")
+
+                # --- TAB 4: ANALYTICS ---
+                with tab4:
+                    st.subheader("📊 Average Lap Duration Performance")
+                    laps_copy = laps.copy()
+                    if 'LapTime' in laps_copy.columns:
+                        laps_copy['LapTimeSecs'] = pd.to_timedelta(laps_copy['LapTime']).dt.total_seconds()
+                        avg_lap = laps_copy.groupby("Driver")["LapTimeSecs"].mean().dropna().sort_values()
+                        fig3 = px.bar(x=avg_lap.index, y=avg_lap.values, labels={"x": "Driver", "y": "Avg Time (Seconds)"}, title="Pace Breakdown")
+                        fig3.update_layout(template="plotly_dark")
+                        st.plotly_chart(fig3, use_container_width=True)
+
+                # Download Report
+                st.markdown("---")
+                csv_data = laps.to_csv(index=False)
+                st.download_button(
+                    "⬇️ Download Session Telemetry Report (CSV)",
+                    data=csv_data,
+                    file_name=f"F1_{gp}_{year}_Data.csv",
+                    mime="text/csv"
+                )
 
     except Exception as e:
         st.error(f"❌ Core Telemetry Loading Failed: {e}")
+        st.info("💡 Pro-Tip: FastF1 servers occasionally require round index keys. Try entering a round number (like '8' for Monaco 2024) inside the Circuit field if a name fails.")
