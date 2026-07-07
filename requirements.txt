@@ -3,7 +3,7 @@ scikit-learn
 joblib
 jieba
 pandas
-numpy
+numpy==1.26.4
 plotly
 xlsxwriter
 streamlit-option-menu
